@@ -1,0 +1,33 @@
+client
+dev tun
+proto {{ openvpn_server_transport }}
+remote {{ openvpn_server_address }} {{ openvpn_server_port }}
+resolv-retry infinite
+nobind
+persist-key
+persist-tun
+ca [inline]
+cert [inline]
+key [inline]
+tls-auth [inline]
+key-direction 1
+verb 1
+keepalive 10 900
+inactive 3600
+remote-cert-tls server
+
+<ca>
+{{ openvpn_client_ca['content'] | b64decode}}
+</ca>
+
+<cert>
+{{ openvpn_client_cert['content'] | b64decode }}
+</cert>
+
+<key>
+{{ openvpn_client_key['content'] | b64decode }}
+</key>
+
+<tls-auth>
+{{ openvpn_client_ta['content'] | b64decode }}
+</tls-auth>

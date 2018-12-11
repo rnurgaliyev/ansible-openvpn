@@ -1,0 +1,25 @@
+port {{ openvpn_server_port }}
+proto {{ openvpn_server_transport }}
+dev tun
+
+ca {{ openvpn_ca_directory }}/ca.crt
+cert {{ openvpn_config_directory }}/server.crt
+key {{ openvpn_config_directory }}/server.key
+dh {{ openvpn_config_directory }}/dh2048.pem
+tls-auth {{ openvpn_config_directory }}/ta.key 0
+
+topology subnet
+server {{ openvpn_server_network }}
+{% for route in openvpn_routes %}
+push "route {{ route }}"
+{% endfor %}
+keepalive 10 120
+
+cipher AES-256-CBC
+
+persist-key
+persist-tun
+status openvpn-status.log
+verb 4
+
+explicit-exit-notify 1

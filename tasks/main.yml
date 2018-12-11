@@ -1,0 +1,151 @@
+---
+
+- name: Install OpenVPN packages
+  apt:
+    pkg: "{{ item }}"
+    update_cache: True
+    cache_valid_time: 3600
+  loop:
+    - openvpn
+    - iptables-persistent
+
+- name: Create certficate authority directories
+  file:
+    dest: "{{ item }}"
+    state: directory
+  loop:
+    - "{{ openvpn_ca_directory }}"
+    - "{{ openvpn_ca_directory }}/server"
+    - "{{ openvpn_ca_directory }}/clients"
+
+- name: Configure OpenSSL for certficate authority
+  template:
+    src: openssl.cfg.j2
+    dest: "{{ openvpn_ca_directory }}/openssl.cfg"
+
+- name: Check certficate authority database index
+  stat:
+    path: "{{ openvpn_ca_directory }}/index.txt"
+  register: ca_database_file
+
+- name: Initialize empty certficate authority database
+  copy:
+    content: ""
+    dest: "{{ openvpn_ca_directory }}/{{ item }}"
+  loop:
+    - index.txt
+    - index.txt.attr
+  when: ca_database_file.stat.exists is defined and not ca_database_file.stat.exists
+  register: ca_initialized
+
+- name: Reset serial number for certficate authority database
+  copy:
+    content: "01"
+    dest: "{{ openvpn_ca_directory }}/serial"
+  when: ca_initialized is changed
+
+- name: Create self-signed certficate authority
+  command: >
+    openssl req -new -x509 -days {{ openvpn_ca_lifetime }}
+    -config {{ openvpn_ca_directory }}/openssl.cfg
+    -keyout "{{ openvpn_ca_directory }}/ca.key"
+    -out "{{ openvpn_ca_directory }}/ca.crt"
+    -batch -nodes
+  args:
+    creates: "{{ openvpn_ca_directory }}/ca.crt"
+  notify: restart openvpn
+
+- name: Create certificate request for server
+  command: >
+    openssl req -new --keyout "{{ openvpn_config_directory }}/server.key"
+    -out "{{ openvpn_ca_directory }}/server/server.csr"
+    -config {{ openvpn_ca_directory }}/openssl.cfg
+    -extensions server
+    -subj "/C={{ openvpn_ca_country }}/ST={{ openvpn_ca_state }}/L={{ openvpn_ca_locality }}/O={{ openvpn_ca_organization_name }}/OU={{ openvpn_ca_organization_unitname }}/CN={{ openvpn_server_common_name }}"
+    -batch -nodes
+  args:
+    creates: "{{ openvpn_ca_directory }}/server/server.csr"
+
+- name: Issue server certificate
+  command: >
+    openssl ca
+    -in "{{ openvpn_ca_directory }}/server/server.csr"
+    -out "{{ openvpn_config_directory }}/server.crt"
+    -config "{{ openvpn_ca_directory }}/openssl.cfg"
+    -extensions server
+    -batch
+  args:
+    creates: "{{ openvpn_config_directory }}/server.crt"
+  notify: restart openvpn
+
+- name: Generate diffie-hellman parameters
+  command: >
+    openssl dhparam -out {{ openvpn_config_directory }}/dh2048.pem 2048
+  args:
+    creates: "{{ openvpn_config_directory }}/dh2048.pem"
+  notify: restart openvpn
+
+- name: Generate HMAC firewall
+  command: >
+    openvpn --genkey --secret {{ openvpn_config_directory }}/ta.key
+  args:
+    creates: "{{ openvpn_config_directory }}/ta.key"
+  notify: restart openvpn
+
+- name: Configure OpenVPN server
+  template:
+    src: openvpn.conf.j2
+    dest: "{{ openvpn_config_directory }}/server.conf"
+  notify: restart openvpn
+
+- name: Enable IP forwarding
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: 1
+    sysctl_set: yes
+    state: present
+    reload: yes
+
+- name: Enable Network Address Translation
+  iptables:
+    table: nat
+    chain: POSTROUTING
+    destination: "{{ item }}"
+    jump: MASQUERADE
+  loop: "{{ openvpn_nat_networks }}"
+  notify: persist netfilter
+
+- name: Ensure that openvpn server is enabled
+  service:
+    name: openvpn@server
+    enabled: True
+
+- name: Create certificate request for client
+  command: >
+    openssl req -new --keyout "{{ openvpn_ca_directory }}/clients/{{ item }}.key"
+    -out "{{ openvpn_ca_directory }}/clients/{{ item }}.csr"
+    -config {{ openvpn_ca_directory }}/openssl.cfg
+    -extensions client
+    -subj "/C={{ openvpn_ca_country }}/ST={{ openvpn_ca_state }}/L={{ openvpn_ca_locality }}/O={{ openvpn_ca_organization_name }}/OU={{ openvpn_ca_organization_unitname }}/CN={{ item }}"
+    -batch -nodes
+  args:
+    creates: "{{ openvpn_ca_directory }}/clients/{{ item }}.csr"
+  loop: "{{ openvpn_clients }}"
+
+- name: Issue certificate for client
+  command: >
+    openssl ca
+    -in "{{ openvpn_ca_directory }}/clients/{{ item }}.csr"
+    -out "{{ openvpn_ca_directory }}/clients/{{ item }}.crt"
+    -config "{{ openvpn_ca_directory }}/openssl.cfg"
+    -extensions client
+    -batch
+  args:
+    creates: "{{ openvpn_ca_directory }}/clients/{{ item }}.crt"
+  loop: "{{ openvpn_clients }}"
+
+- name: Create client profile
+  include_tasks: client-profile.yml
+  loop: "{{ openvpn_clients }}"
+  loop_control:
+    loop_var: client

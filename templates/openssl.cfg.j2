@@ -1,0 +1,81 @@
+dir = .
+
+[ca]
+default_ca = {{ openvpn_ca_name }}
+
+[{{ openvpn_ca_name }}]
+dir = {{ openvpn_ca_directory }}
+certs = {{ openvpn_ca_directory }}
+crl = {{ openvpn_ca_directory }}/crl.pem
+crl_dir = {{ openvpn_ca_directory }}
+database = {{ openvpn_ca_directory }}/index.txt
+serial = {{ openvpn_ca_directory }}/serial
+new_certs_dir = {{ openvpn_ca_directory }}
+certificate = {{ openvpn_ca_directory }}/ca.crt
+private_key = {{ openvpn_ca_directory }}/ca.key
+RANDFILE = {{ openvpn_ca_directory }}/.rand
+x509_extensions	= client
+default_days = {{ openvpn_client_cert_lifetime }}
+default_crl_days = {{ openvpn_ca_crl_lifetime }}
+default_md = default
+preserve = no
+policy = {{ openvpn_ca_name }}_policy
+unique_subject = no
+
+[{{ openvpn_ca_name }}_policy]
+countryName = match
+stateOrProvinceName = match
+organizationName = match
+organizationalUnitName = optional
+commonName = supplied
+emailAddress = optional
+
+[req]
+default_bits = {{ openvpn_ca_bits }}
+default_keyfile = key.pem
+default_md = sha256
+string_mask = nombstr
+distinguished_name = req_distinguished_name
+x509_extensions = v3_ca
+req_extensions = v3_req
+
+[req_distinguished_name]
+0.organizationName = Organization Name
+0.organizationName_default = {{ openvpn_ca_organization_name }}
+localityName = Localty
+localityName_default = {{ openvpn_ca_locality }}
+stateOrProvinceName = State or Province
+stateOrProvinceName_default = {{ openvpn_ca_state }}
+countryName = Country
+countryName_default = {{ openvpn_ca_country }}
+countryName_min = 2
+countryName_max = 2
+emailAddress_max = 64
+commonName_max = 64
+
+[client]
+basicConstraints = CA:FALSE
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer:always
+extendedKeyUsage = clientAuth
+keyUsage = digitalSignature
+nsComment = "Client Certificate for {{ openvpn_ca_name }}"
+nsCertType = client
+
+[server]
+basicConstraints = CA:FALSE
+nsCertType = server
+nsComment = "Server Certificate for {{ openvpn_ca_name }}"
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer:always
+extendedKeyUsage = serverAuth
+keyUsage = digitalSignature, keyEncipherment
+
+[v3_ca]
+basicConstraints = CA:TRUE
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always,issuer:always
+
+[v3_req]
+basicConstraints = CA:FALSE
+subjectKeyIdentifier = hash

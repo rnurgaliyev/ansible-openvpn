@@ -1,40 +1,3 @@
-# OpenVPN role for Ansible
-Ansible role to install and configure OpenVPN Server.
-
-This role will setup you an OpenVPN Server to access your cloud network (VPC) at no cost.
-Just run this role agains empty Ubuntu Bionic instance, and you will have secure OpenVPN server
-that does NAT. All configured clients will have .ovpn profile file, that is suitable for most
-OpenVPN clients.
-
-This role does not cover all aspects of VPN configuration, rather it was designed just to quickly
-provide a working VPN server with reasonable level of security.
-
-# Certificate Authority
-This role will generate self-signed CA, and will use it to issue client certificates. Everything
-is idempotent, so it is safe to run it again - nothing will be overwritten.
-
-If your CA is compromised, just remove OpenVPN instance and re-create it using this role.
-
-# Example usage
-Following configuration is just enough, to create VPN server with one client - `johndoe`. Users profile will be saved
-in `/etc/openvpn/client/johndoe.ovpn`, and in users home directory /home/johndoe, if such user exists. It will make easier
-for the user to fetch his/her profile using SCP. Following example assumes that 172.30.0.0/16 is the network used in
-your VPC.
-```
-openvpn_clients:
-  - johndoe
-
-openvpn_routes:
-  - "172.30.0.0 255.255.0.0"
-
-openvpn_nat_networks:
-  - "172.30.0.0/16"
-
-openvpn_server_network: "172.30.128.0 255.255.255.0"
-```
-
-# Full list of configurable options
-```
 ---
 
 # You probably should override following values. This values will go to CA.
@@ -89,4 +52,3 @@ openvpn_server_network: "10.255.255.0 255.255.255.0"
 # VPN transport protocol and port number
 openvpn_server_transport: udp
 openvpn_server_port: 1194
-```

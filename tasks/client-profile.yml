@@ -1,0 +1,41 @@
+---
+
+- name: "Get certificate authority from remote node for {{ client }}"
+  slurp:
+    src: "{{ openvpn_ca_directory }}/ca.crt"
+  register: openvpn_client_ca
+
+- name: "Get client certificate from remote node for {{ client }}"
+  slurp:
+    src: "{{ openvpn_ca_directory }}/clients/{{ client }}.crt"
+  register: openvpn_client_cert
+
+- name: "Get client key from remote node for {{ client }}"
+  slurp:
+    src: "{{ openvpn_ca_directory }}/clients/{{ client }}.key"
+  register: openvpn_client_key
+
+- name: "Get tls-auth from remote node for {{ client }}"
+  slurp:
+    src: "{{ openvpn_config_directory }}/ta.key"
+  register: openvpn_client_ta
+
+- name: "Template client profile for {{ client }}"
+  template:
+    src: client.ovpn.j2
+    dest: "{{ openvpn_config_directory }}/client/{{ client }}.ovpn"
+
+- name: "Check if user with name {{ client }} exists"
+  user:
+    name: "{{ client }}"
+  check_mode: True
+  register: user
+
+- name: "Template client profile for {{ client }} to their home directory"
+  template:
+    src: client.ovpn.j2
+    dest: "{{ user.home }}/{{ client }}.ovpn"
+    owner: "{{ client }}"
+    group: "{{ user.group }}"
+    mode: 0600
+  when: user is not changed
