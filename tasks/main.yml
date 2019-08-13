@@ -5,6 +5,7 @@
     pkg: "{{ item }}"
     update_cache: True
     cache_valid_time: 3600
+    force_apt_get: True
   loop:
     - openvpn
     - iptables-persistent
